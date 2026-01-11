@@ -8,7 +8,9 @@ def index():
      
     return "API is running on swagger"
 
-# ADD THIS SECTION TO MEET TRELLO REQUIREMENTS
+@app.route('/status')
+def status():
+    return jsonify({"message": "System is online"})
 @app.route('/health')
 def health():
 
