@@ -8,7 +8,7 @@ def register(app, session):
     Registers the status routes for US-06.
     """
     
-    @app.route('/')
+    @app.route('/', endpoint='us06_index')
     def index():
         return "API is running on swagger"
 

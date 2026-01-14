@@ -22,13 +22,13 @@ def get_app():
     import US_10
     import US_09
     import US_06
-    import US__13
+    import US_13
     
     # Registration is critical for the routes to exist
     US_10.register(app, session)
     US_09.register(app, session)
     US_06.register(app, session)
-    US__13.register(app, session)
+    US_13.register(app, session)
 
     return app
 

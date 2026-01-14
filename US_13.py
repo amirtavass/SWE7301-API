@@ -8,14 +8,6 @@ def register(app, session):
     """
     Registers the authentication routes for US-13.
     """
-    
-    @app.route('/')
-    def index():
-        return "API is running"
-
-    @app.route('/health')
-    def health():
-        return jsonify({"status": "ok"})
 
     @app.route('/login', methods=['POST'])
     def login():
