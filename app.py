@@ -14,9 +14,9 @@ def get_app():
     
     # We create a scoped session for the routes
     session = SessionLocal()
-    import US_07
-    import US_08
-    import US_12
+    import http_endpoints_07 as US_07
+    import json_data_format_08 as US_08  
+    import bulk_12 as US_12
     
     # Registration is critical for the routes to exist
     US_07.register(app, session)
