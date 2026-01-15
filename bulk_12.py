@@ -8,8 +8,7 @@ def register(app, session=None):
 
     @app.route("/api/v1/bulk/insights", methods=["GET"])
     def get_multiple_insights():
-        # AC-01: Process multiple records in a single request via ID list
-        # Example URL: /api/v1/bulk/insights?ids=101,102,105
+        # Process multiple records in a single request via ID list
         ids_param = request.args.get('ids')
         
         if not ids_param:
@@ -37,7 +36,7 @@ def register(app, session=None):
         successful = []
         failed = []
 
-        # AC-02: Partial failure handling (identify which IDs were not found)
+        # Partial failure handling (identify which IDs were not found)
         for requested_id in id_list:
             if requested_id in mock_db:
                 successful.append(mock_db[requested_id])
