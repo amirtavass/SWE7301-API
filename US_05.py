@@ -1,8 +1,13 @@
-
+"""
+US-05: Basic API Health Endpoints
+"""
 from flask import jsonify
 
-def register(app, session=None):
-
+def register(app, session):
+    """
+    Registers the basic health routes for US-05.
+    """
+    
     @app.route('/')
     def index():
         return "API is running"
