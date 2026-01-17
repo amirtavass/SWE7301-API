@@ -1,6 +1,6 @@
 import pytest
 from datetime import datetime
-from app import get_app, SessionLocal, engine
+from backendApi.app import get_app, SessionLocal, engine
 from US_10 import Base, ObservationRecord
 
 @pytest.fixture
