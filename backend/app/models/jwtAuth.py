@@ -5,9 +5,6 @@ from flask import request, jsonify
 from flask_jwt_extended import create_access_token, jwt_required
 
 def register(app, session):
-    """
-    Registers the authentication routes for US-13.
-    """
 
     @app.route('/login', methods=['POST'])
     def login():

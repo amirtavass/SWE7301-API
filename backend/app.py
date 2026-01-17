@@ -19,20 +19,16 @@ def get_app():
     
     # We create a scoped session for the routes
     session = SessionLocal()
-    import backend.app.routes.observationApi as observationApi
-    import backend.app.routes.filtering as filtering
-    # import backend.app.auth.US_06 as US_06
-    import backend.app.routes.US_11 as US_11
-    import backend.app.models.jwtAuth as jwtAuth
-    
-    # Registration is critical for the routes to exist
-    observationApi.register(app, session)
+    import app.routes.observation as observation
+    import app.routes.filtering as filtering
+    import app.routes.healthApi as healthApi
+    import app.models.jwtAuth as jwtAuth    
+
+        # Registration is critical for the routes to exist
+    observation.register(app, session)
     filtering.register(app, session)
-    # US_06.register(app, session)
-    US_11.register(app, session)
+    healthApi.register(app, session)
     jwtAuth.register(app, session)
-
-
     return app
 
 if __name__ == '__main__':

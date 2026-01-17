@@ -2,7 +2,7 @@
 US-09: Filter and Retrieve Geospatial Observation Data
 """
 from flask import request, jsonify
-from backendApi.app.routes.observationApi import ObservationRecord # Import the model from your storage module
+from app.routes.observation import ObservationRecord # Import the model from your storage module
 
 def register(app, session):
     """
