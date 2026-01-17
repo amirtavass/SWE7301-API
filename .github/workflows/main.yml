@@ -28,7 +28,7 @@ jobs:
     - name: Initialize Database
       run: |
         export PYTHONPATH=$PYTHONPATH:$(pwd)/backend
-        python -c "from app import engine; from app.models.observation import ObservationRecord; Base.metadata.create_all(engine)"
+        python -c "from run import engine; from app.models.observation import ObservationRecord; Base.metadata.create_all(engine)"
       
     - name: Run Tests
       run: |
