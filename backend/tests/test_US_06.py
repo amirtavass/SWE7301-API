@@ -1,6 +1,6 @@
 import pytest
 from flask import Flask
-from backend.app.auth.swaggerHealthApi import register
+from app.auth.swaggerHealthApi import register
 
 @pytest.fixture
 def client():
