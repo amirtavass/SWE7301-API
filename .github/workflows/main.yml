@@ -22,8 +22,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install flask sqlalchemy pytest
-        pip install flask sqlalchemy flask-jwt-extended pytest
+        python -c "from app.db import Base; from run import engine; import app.models.observation; Base.metadata.create_all(engine)"
 
     - name: Initialize Database
       run: |
