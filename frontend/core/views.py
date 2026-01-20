@@ -1,10 +1,11 @@
 # # US-14: Django Website - Basic Views
 import requests
+import os
 from django.http import JsonResponse
 from django.shortcuts import render, redirect
 from .forms import LoginForm
 
-BACKEND_URL = "http://127.0.0.1:5000"
+BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:5000")
 
 def index(request):
     """Landing page view"""
