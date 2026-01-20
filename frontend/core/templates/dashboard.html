@@ -215,7 +215,22 @@
     <main class="main-content">
         <header class="header">
             <div class="welcome">
-                <h1>Welcome back, {{ username }}</h1>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <h1>Welcome back, {{ username }}</h1>
+                    {% if backend_connected %}
+                    <span
+                        style="background: #dcfce7; color: #166534; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 99px; display: flex; align-items: center; gap: 4px;">
+                        <span style="width: 8px; height: 8px; background: #22c55e; border-radius: 50%;"></span>
+                        Backend Connected
+                    </span>
+                    {% else %}
+                    <span
+                        style="background: #fee2e2; color: #991b1b; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 99px; display: flex; align-items: center; gap: 4px;">
+                        <span style="width: 8px; height: 8px; background: #ef4444; border-radius: 50%;"></span>
+                        Backend Error
+                    </span>
+                    {% endif %}
+                </div>
                 <p>Here's what's happening with your satellite data today.</p>
             </div>
             <div class="user-profile">

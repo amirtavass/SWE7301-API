@@ -1,10 +1,12 @@
 from flask import Flask, g
+from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from app.db import engine, SessionLocal, Base
 import os
 
 def get_app():
     app = Flask(__name__)
+    CORS(app)
 
     # JWT Config
     app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "super-secret-key-change-me")

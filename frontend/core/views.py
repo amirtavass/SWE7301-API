@@ -84,14 +84,16 @@ def dashboard(request):
     
     products = []
     subscriptions = []
+    headers = {"Authorization": f"Bearer {access_token}"}
+    
     try:
         # Fetch products
-        prod_res = requests.get(f"{BACKEND_URL}/api/products")
+        prod_res = requests.get(f"{BACKEND_URL}/api/products", headers=headers)
         if prod_res.status_code == 200:
             products = prod_res.json()
         
         # Fetch user's subscriptions
-        sub_res = requests.get(f"{BACKEND_URL}/api/subscriptions", params={"username": username})
+        sub_res = requests.get(f"{BACKEND_URL}/api/subscriptions", params={"username": username}, headers=headers)
         if sub_res.status_code == 200:
             subscriptions = sub_res.json()
     except Exception as e:
@@ -100,7 +102,8 @@ def dashboard(request):
     return render(request, "dashboard.html", {
         "username": username,
         "products": products,
-        "subscriptions": subscriptions
+        "subscriptions": subscriptions,
+        "backend_connected": True if (products or subscriptions) else False
     })
 
 
@@ -111,11 +114,12 @@ def subscribe(request, product_id):
         return redirect("login")
     
     username = request.session.get("username")
+    headers = {"Authorization": f"Bearer {access_token}"}
     try:
         requests.post(f"{BACKEND_URL}/api/subscriptions", json={
             "username": username,
             "product_id": product_id
-        })
+        }, headers=headers)
     except Exception as e:
         print(f"Error subscribing: {e}")
     
