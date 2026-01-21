@@ -11,6 +11,10 @@ from flask_jwt_extended import (
     get_jwt
 )
 from datetime import timedelta
+import pyotp
+import qrcode
+import io
+import base64
 
 # In-memory user storage (replace with database in production)
 USERS = {
@@ -18,25 +22,33 @@ USERS = {
         "password": "password",
         "email": "admin@geoscope.com",
         "first_name": "Admin",
-        "last_name": "User"
+        "last_name": "User",
+        "otp_secret": None,
+        "is_2fa_enabled": False
     },
     "full_user": {
         "password": "password",
         "email": "full@geoscope.com",
         "first_name": "Full",
-        "last_name": "Access"
+        "last_name": "Access",
+        "otp_secret": None,
+        "is_2fa_enabled": False
     },
     "none_user": {
         "password": "password",
         "email": "none@geoscope.com",
         "first_name": "No",
-        "last_name": "Access"
+        "last_name": "Access",
+        "otp_secret": None,
+        "is_2fa_enabled": False
     },
     "partial_user": {
         "password": "password",
         "email": "partial@geoscope.com",
         "first_name": "Partial",
-        "last_name": "Access"
+        "last_name": "Access",
+        "otp_secret": None,
+        "is_2fa_enabled": False
     }
 }
 
@@ -97,6 +109,14 @@ def register(app):
             # Validate credentials
             if username not in USERS or USERS[username]["password"] != password:
                 return jsonify({"msg": "Bad username or password"}), 401
+
+            # Check if 2FA is required
+            if USERS[username].get("is_2fa_enabled"):
+                return jsonify({
+                    "msg": "2FA required",
+                    "two_step_required": True,
+                    "username": username
+                }), 200
 
             # Create tokens with custom expiration
             access_token = create_access_token(
@@ -179,6 +199,105 @@ def register(app):
                 "msg": "Given valid token, when used, then data returned.",
                 "user": current_user,
                 "data": "Top Secret Info"
+            }), 200
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/2fa/setup', methods=['POST'])
+    @jwt_required()
+    def setup_2fa():
+        """
+        Generate a TOTP secret and QR code for the user.
+        """
+        try:
+            username = get_jwt_identity()
+            if username not in USERS:
+                return jsonify({"msg": "User not found"}), 404
+            
+            secret = pyotp.random_base32()
+            USERS[username]["otp_secret"] = secret
+            
+            totp = pyotp.TOTP(secret)
+            provisioning_uri = totp.provisioning_uri(name=USERS[username]["email"], issuer_name="GeoScope")
+            
+            img = qrcode.make(provisioning_uri)
+            buffered = io.BytesIO()
+            img.save(buffered, format="PNG")
+            img_str = base64.b64encode(buffered.getvalue()).decode()
+            
+            return jsonify({
+                "secret": secret,
+                "qr_code": f"data:image/png;base64,{img_str}"
+            }), 200
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/2fa/verify', methods=['POST'])
+    def verify_2fa():
+        """
+        Verify the TOTP code and return tokens if valid.
+        """
+        try:
+            data = request.json
+            username = data.get("username")
+            otp_code = data.get("otp_code")
+            setup_mode = data.get("setup_mode", False)
+            
+            if username not in USERS:
+                return jsonify({"msg": "User not found"}), 404
+            
+            secret = USERS[username].get("otp_secret")
+            if not secret:
+                return jsonify({"msg": "2FA not set up"}), 400
+            
+            totp = pyotp.TOTP(secret)
+            if totp.verify(otp_code):
+                if setup_mode:
+                    USERS[username]["is_2fa_enabled"] = True
+                
+                # Create tokens
+                access_token = create_access_token(identity=username, expires_delta=timedelta(hours=1))
+                refresh_token = create_refresh_token(identity=username, expires_delta=timedelta(days=30))
+                
+                return jsonify({
+                    "access_token": access_token,
+                    "refresh_token": refresh_token,
+                    "user": {
+                        "username": username,
+                        "email": USERS[username]["email"],
+                        "first_name": USERS[username]["first_name"],
+                        "last_name": USERS[username]["last_name"]
+                    }
+                }), 200
+            else:
+                return jsonify({"msg": "Invalid OTP code"}), 401
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/google-login', methods=['POST'])
+    def google_login():
+        """
+        Mock Google Login endpoint. 
+        In a real app, this would redirect to Google's OAuth consent screen.
+        """
+        try:
+            # For demonstration, we'll just simulate a successful login as 'full_user'
+            # In real implementation, this would use google-auth-oauthlib
+            username = "full_user"
+            
+            # Create tokens
+            access_token = create_access_token(identity=username, expires_delta=timedelta(hours=1))
+            refresh_token = create_refresh_token(identity=username, expires_delta=timedelta(days=30))
+            
+            return jsonify({
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "user": {
+                    "username": username,
+                    "email": USERS[username]["email"],
+                    "first_name": USERS[username]["first_name"],
+                    "last_name": USERS[username]["last_name"]
+                }
             }), 200
         except Exception as e:
             return jsonify({'error': str(e)}), 500

@@ -31,8 +31,13 @@ def login_view(request):
                 "password": password
             })
             
+            data = response.json()
             if response.status_code == 200:
-                data = response.json()
+                if data.get("two_step_required"):
+                    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                        return JsonResponse({"two_step_required": True, "username": username})
+                    return render(request, "login.html", {"form": form, "two_step_required": True})
+                
                 access_token = data.get("access_token")
                 refresh_token = data.get("refresh_token")
                 user_info = data.get("user", {})
@@ -42,13 +47,64 @@ def login_view(request):
                 request.session["refresh_token"] = refresh_token
                 request.session["username"] = username
                 request.session["user_info"] = user_info
+                
+                if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                    return JsonResponse({"success": True, "redirect_url": "/dashboard/"})
                 return redirect("dashboard")
             else:
-                error = "Invalid username or password"
+                error = data.get("msg", "Invalid username or password")
+                if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                    return JsonResponse({"success": False, "error": error})
         except requests.exceptions.RequestException as e:
             error = f"Backend connection error: {str(e)}"
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                return JsonResponse({"success": False, "error": error})
 
     return render(request, "login.html", {"form": form, "error": error})
+
+
+def verify_2fa_view(request):
+    """AJAX view to verify 2FA code"""
+    if request.method == "POST":
+        import json
+        data = json.loads(request.body)
+        username = data.get("username")
+        otp_code = data.get("otp_code")
+        
+        try:
+            response = requests.post(f"{BACKEND_URL}/2fa/verify", json={
+                "username": username,
+                "otp_code": otp_code
+            })
+            
+            if response.status_code == 200:
+                res_data = response.json()
+                request.session["access_token"] = res_data.get("access_token")
+                request.session["refresh_token"] = res_data.get("refresh_token")
+                request.session["username"] = username
+                request.session["user_info"] = res_data.get("user")
+                return JsonResponse({"success": True, "redirect_url": "/dashboard/"})
+            else:
+                return JsonResponse({"success": False, "error": "Invalid OTP code"})
+        except Exception as e:
+            return JsonResponse({"success": False, "error": str(e)})
+    return JsonResponse({"status": "error"}, status=405)
+
+
+def google_login_view(request):
+    """Simulate Google Login"""
+    try:
+        response = requests.post(f"{BACKEND_URL}/google-login")
+        if response.status_code == 200:
+            res_data = response.json()
+            request.session["access_token"] = res_data.get("access_token")
+            request.session["refresh_token"] = res_data.get("refresh_token")
+            request.session["username"] = res_data["user"]["username"]
+            request.session["user_info"] = res_data.get("user")
+            return JsonResponse({"success": True, "redirect_url": "/dashboard/"})
+    except Exception as e:
+        return JsonResponse({"success": False, "error": str(e)})
+    return JsonResponse({"success": False, "error": "Google login failed"})
 
 
 def signup_view(request):
