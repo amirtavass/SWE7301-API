@@ -3,7 +3,7 @@ import json
 import random
 import time
 
-BASE_URL = "http://127.0.0.1:5000"
+BASE_URL = "http://127.0.0.1:5001"
 
 def test_full_flow():
     email = f"flow_{random.randint(10000,99999)}@example.com"
@@ -25,7 +25,7 @@ def test_full_flow():
     
     # 2. Get OTP
     try:
-        with open("backend_otp.txt", "r") as f:
+        with open("backend/backend_otp.txt", "r") as f:
             otp = f.read().strip()
         print(f"[2] Retrieved OTP: {otp}")
     except Exception as e:

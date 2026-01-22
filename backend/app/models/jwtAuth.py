@@ -5,6 +5,7 @@ US-16: JWT Token Management via Website
 import random
 import string
 from datetime import datetime
+from werkzeug.security import generate_password_hash, check_password_hash
 from flask import request, jsonify, g
 from flask_jwt_extended import (
     create_access_token, 
@@ -103,9 +104,10 @@ def register(app):
             otp = generate_otp()
             
             # Store new user
+            hashed_password = generate_password_hash(password)
             new_user = User(
                 email=email,
-                password=password, # In prod, hash this!
+                password=hashed_password, 
                 first_name=first_name,
                 last_name=last_name,
                 is_2fa_enabled=0,
@@ -182,7 +184,7 @@ def register(app):
             # Validate credentials
             user = db.query(User).filter(User.email == email).first()
             
-            if not user or user.password != password:
+            if not user or not check_password_hash(user.password, password):
                 return jsonify({"msg": "Bad email or password"}), 401
 
             # Generate OTP for Login
