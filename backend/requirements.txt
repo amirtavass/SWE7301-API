@@ -8,3 +8,4 @@ flasgger==0.9.7.1
 pytest==9.0.2
 Authlib==1.4.0
 requests==2.32.3
+python-dotenv
