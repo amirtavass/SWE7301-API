@@ -2,6 +2,9 @@ from flask import Flask, g
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from flasgger import Swagger
+from flask_talisman import Talisman
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from app.db import engine, SessionLocal, Base
 from dotenv import load_dotenv
 import os
@@ -17,6 +20,31 @@ def get_app():
     app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "super-secret-key-change-me")
     app.secret_key = os.getenv("FLASK_SECRET_KEY", "super-secret-flask-key")  # Required for Authlib/Session
     JWTManager(app)
+
+    # Security: Talisman (Headers + CSP)
+    # Force HTTPS only if NOT in debug mode (Production)
+    csp = {
+        'default-src': '\'self\'',
+        'img-src': '*',
+        'script-src': ['\'self\'', '\'unsafe-inline\'', '\'unsafe-eval\'', 'https://cdnjs.cloudflare.com'], # unsafe-inline/eval often needed for Swagger/React dev
+        'style-src': ['\'self\'', '\'unsafe-inline\'', 'https://fonts.googleapis.com', 'https://cdnjs.cloudflare.com'],
+        'font-src': ['\'self\'', 'https://fonts.gstatic.com', 'data:']
+    }
+    
+    # Check for debug mode or explicit env var
+    is_production = os.getenv('FLASK_ENV') == 'production' or not app.debug
+    
+    Talisman(app, 
+             content_security_policy=csp, 
+             force_https=is_production)
+
+    # Security: Limiter (Rate Limiting)
+    limiter = Limiter(
+        get_remote_address,
+        app=app,
+        default_limits=["200 per day", "50 per hour"],
+        storage_uri="memory://"
+    )
 
     # Swagger Documentation
     Swagger(app)

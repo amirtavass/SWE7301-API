@@ -11,3 +11,5 @@ requests==2.32.3
 python-dotenv
 pyotp
 qrcode
+flask-talisman
+flask-limiter
