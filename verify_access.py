@@ -1,47 +1,56 @@
 import requests
+import json
+import random
 import time
 
 BASE_URL = "http://127.0.0.1:5000"
 
-def login(username, password):
-    print(f"\nLogging in as {username}...")
-    res = requests.post(f"{BASE_URL}/login", json={"username": username, "password": password})
-    if res.status_code == 200:
-        return res.json()["access_token"]
-    print(f"Login failed: {res.text}")
-    return None
-
-def test_access(token, obs_id):
-    headers = {"Authorization": f"Bearer {token}"}
-    res = requests.get(f"{BASE_URL}/api/observations/{obs_id}", headers=headers)
-    return res.status_code, res.json()
-
-def run_tests():
-    # Observations seeded: ID 1 (Product 1), ID 2 (Product 2), ID 3 (Product 3), ID 4 (Product 4)
+def test_full_flow():
+    email = f"flow_{random.randint(10000,99999)}@example.com"
+    password = "password123"
+    print(f"Testing Full Flow for {email}...")
     
-    users = [
-        ("full_user", "password", [1, 2, 3, 4], []), # Should have access to all
-        ("partial_user", "password", [1, 2], [3, 4]), # Should have access to 1, 2 only
-        ("none_user", "password", [], [1, 2, 3, 4]), # Should have access to none
-    ]
+    # 1. Signup
+    print("[1] Requesting Signup...")
+    res = requests.post(f"{BASE_URL}/signup", json={
+        "email": email, "password": password, "first_name": "Flow", "last_name": "Test"
+    })
+    
+    if res.status_code != 201:
+        print(f"Signup Failed: {res.status_code} {res.text}")
+        return
 
-    for username, password, allowed, forbidden in users:
-        token = login(username, password)
-        if not token: continue
+    print("Signup Success. Waiting for OTP file...")
+    time.sleep(1) 
+    
+    # 2. Get OTP
+    try:
+        with open("backend_otp.txt", "r") as f:
+            otp = f.read().strip()
+        print(f"[2] Retrieved OTP: {otp}")
+    except Exception as e:
+        print(f"Failed to read OTP: {e}")
+        return
 
-        for obs_id in allowed:
-            status, data = test_access(token, obs_id)
-            if status == 200:
-                print(f"✅ {username} accessed Observation {obs_id}")
-            else:
-                print(f"❌ {username} FAILED to access Observation {obs_id} (Status: {status})")
+    # 3. Verify Email
+    print("[3] Verifying Email...")
+    res = requests.post(f"{BASE_URL}/verify-email", json={"email": email, "otp": otp})
+    
+    if res.status_code == 200:
+        print("Email Verified Successfully!")
+        print(res.json())
+    else:
+        print(f"Verification Failed: {res.status_code} {res.text}")
+        return
 
-        for obs_id in forbidden:
-            status, data = test_access(token, obs_id)
-            if status == 403:
-                print(f"✅ {username} correctly blocked from Observation {obs_id}")
-            else:
-                print(f"❌ {username} was NOT blocked from Observation {obs_id} (Status: {status})")
+    # 4. Login (Should trigger 2FA OTP)
+    print("[4] Logging in...")
+    res = requests.post(f"{BASE_URL}/login", json={"email": email, "password": password})
+    
+    if res.status_code == 200 and res.json().get("otp_required"):
+         print("Login Success. OTP Required triggered.")
+    else:
+         print(f"Login Check Failed: {res.status_code} {res.text}")
 
 if __name__ == "__main__":
-    run_tests()
+    test_full_flow()

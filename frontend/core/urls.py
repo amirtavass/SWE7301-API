@@ -16,4 +16,9 @@ urlpatterns = [
     path('auth/google/callback', views.google_callback_view, name='google_callback'),
     path('setup-2fa/', views.setup_2fa_view, name='setup_2fa'),
     path('verify-2fa-setup/', views.verify_2fa_setup_view, name='verify_2fa_setup'),
+    path('verify-email/', views.verify_email_view, name='verify_email'),
+    path('verify-login-otp/', views.verify_login_otp_view, name='verify_login_otp'),
+    path('settings/', views.settings, name='settings'),
+    path('setup-2fa-endpoint/', views.setup_2fa_json_view, name='setup_2fa_endpoint'),
+    path('disable-2fa/', views.disable_2fa_view, name='disable_2fa'),
 ]

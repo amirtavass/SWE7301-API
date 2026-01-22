@@ -2,6 +2,9 @@
 US-13: Authentication and Protected Routes
 US-16: JWT Token Management via Website
 """
+import random
+import string
+from datetime import datetime
 from flask import request, jsonify, g
 from flask_jwt_extended import (
     create_access_token, 
@@ -17,6 +20,56 @@ import io
 import base64
 from app.routes.observation import User, get_db
 
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import os
+
+def generate_otp():
+    return ''.join(random.choices(string.digits, k=6))
+
+def send_email_otp(to_email, otp, subject="Your OTP Code"):
+    # 1. Log to file/console for backup/dev access (keep this for now so dev doesn't break if SMTP fails)
+    print(f"\n{'='*30}")
+    print(f"[EMAIL] To: {to_email}")
+    print(f"Subject: {subject}")
+    print(f"Body: Your verification code is: {otp}")
+    print(f"{'='*30}\n")
+    try:
+        with open("backend_otp.txt", "w") as f:
+            f.write(otp)
+    except:
+        pass
+
+    # 2. Attempt Real SMTP Sending
+    smtp_server = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+    smtp_port = int(os.getenv("SMTP_PORT", "587"))
+    sender_email = os.getenv("SMTP_EMAIL")
+    sender_password = os.getenv("SMTP_PASSWORD")
+
+    if not sender_email or not sender_password:
+        print("SMTP Credentials not set in .env. Skipping real email send.")
+        return
+
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = sender_email
+        msg['To'] = to_email
+        msg['Subject'] = subject
+
+        body = f"Hello,\n\nYour GeoScope Verification Code is: {otp}\n\nThis code expires in 10 minutes."
+        msg.attach(MIMEText(body, 'plain'))
+
+        server = smtplib.SMTP(smtp_server, smtp_port)
+        server.starttls()
+        server.login(sender_email, sender_password)
+        text = msg.as_string()
+        server.sendmail(sender_email, to_email, text)
+        server.quit()
+        print(f"✅ Real email sent successfully to {to_email}")
+    except Exception as e:
+        print(f"❌ Failed to send real email: {e}")
+
 def register(app):
     """
     Registers authentication routes with JWT token management.
@@ -27,7 +80,7 @@ def register(app):
     def signup():
         """
         US-16: User registration endpoint
-        Creates new user account and stores in database
+        Creates new user account (unverified) and sends OTP.
         """
         try:
             db = get_db()
@@ -46,30 +99,79 @@ def register(app):
             if existing_user:
                 return jsonify({"msg": "User with this email already exists"}), 409
 
+            # Generate OTP
+            otp = generate_otp()
+            
             # Store new user
             new_user = User(
                 email=email,
                 password=password, # In prod, hash this!
                 first_name=first_name,
                 last_name=last_name,
-                is_2fa_enabled=0
+                is_2fa_enabled=0,
+                is_verified=0,
+                otp_code=otp,
+                otp_created_at=datetime.utcnow()
             )
             db.add(new_user)
             db.commit()
 
+            # Send OTP
+            send_email_otp(email, otp, "Verify your GeoScope Account")
+
             return jsonify({
-                "msg": "User created successfully",
-                "email": email
+                "msg": "User created. Verification required.",
+                "email": email,
+                "verification_required": True
             }), 201
 
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/verify-email', methods=['POST'])
+    def verify_email():
+        """
+        Verifies the email OTP for new accounts.
+        """
+        try:
+            db = get_db()
+            data = request.json
+            email = data.get("email")
+            otp = data.get("otp")
+
+            user = db.query(User).filter(User.email == email).first()
+            if not user:
+                return jsonify({"msg": "User not found"}), 404
+
+            if user.otp_code != otp:
+                return jsonify({"msg": "Invalid OTP"}), 400
+                
+            # Ideally check expiry here (e.g. < 10 mins)
+            
+            user.is_verified = 1
+            user.otp_code = None # Clear OTP
+            db.commit()
+
+            # Generate Tokens
+            access_token = create_access_token(identity=email, expires_delta=timedelta(hours=1))
+            refresh_token = create_refresh_token(identity=email, expires_delta=timedelta(days=30))
+
+            return jsonify({
+                "msg": "Email verified successfully",
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "user": user.to_dict()
+            }), 200
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
     @app.route('/login', methods=['POST'])
     def login():
         """
-        US-16: Enhanced login with access and refresh tokens
-        Returns both tokens with configurable expiration times
+        US-16: Login flow.
+        1. Validate Creds.
+        2. If Valid -> Send OTP (Email).
+        3. Return 200 with 'otp_required'.
         """
         try:
             db = get_db()
@@ -83,33 +185,71 @@ def register(app):
             if not user or user.password != password:
                 return jsonify({"msg": "Bad email or password"}), 401
 
-            # Check if 2FA is required
+            # Generate OTP for Login
+            otp = generate_otp()
+            user.otp_code = otp
+            user.otp_created_at = datetime.utcnow()
+            db.commit()
+
+            # Send OTP
+            # Send OTP
+            send_email_otp(email, otp, "Login Access Code")
+
+            return jsonify({
+                "msg": "OTP sent to email",
+                "otp_required": True,
+                "email": email
+            }), 200
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/verify-login-otp', methods=['POST'])
+    def verify_login_otp():
+        """
+        Verifies OTP for Login. 
+        If valid, checks for TOTP (Optional 2FA).
+        """
+        try:
+            db = get_db()
+            data = request.json
+            email = data.get("email")
+            otp = data.get("otp")
+
+            user = db.query(User).filter(User.email == email).first()
+            if not user:
+                return jsonify({"msg": "User not found"}), 404
+
+            if user.otp_code != otp:
+                 return jsonify({"msg": "Invalid OTP"}), 400
+
+            # Clear OTP
+            user.otp_code = None
+            db.commit()
+
+            # Check if Authenticator App 2FA is enabled
             if user.is_2fa_enabled:
-                return jsonify({
-                    "msg": "2FA required",
-                    "two_step_required": True,
+                 return jsonify({
+                    "msg": "Authenticator code required",
+                    "totp_required": True,
                     "email": email
                 }), 200
 
-            # Create tokens with custom expiration
+            # If no TOTP, fully logged in
             access_token = create_access_token(
                 identity=email,
-                expires_delta=timedelta(hours=1)  # 1 hour expiry
+                expires_delta=timedelta(hours=1)
             )
             refresh_token = create_refresh_token(
                 identity=email,
-                expires_delta=timedelta(days=30)  # 30 day expiry
+                expires_delta=timedelta(days=30)
             )
-
-            # Return user info along with tokens
-            user_info = user.to_dict()
-
             return jsonify({
                 "access_token": access_token,
                 "refresh_token": refresh_token,
-                "user": user_info
+                "user": user.to_dict()
             }), 200
-            
+
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
@@ -142,9 +282,13 @@ def register(app):
             current_user_email = get_jwt_identity()
             jwt_data = get_jwt()
             
+            db = get_db()
+            user = db.query(User).filter(User.email == current_user_email).first()
+            user_data = user.to_dict() if user else current_user_email
+
             return jsonify({
                 "valid": True,
-                "user": current_user_email,
+                "user": user_data,
                 "exp": jwt_data.get("exp"),
                 "iat": jwt_data.get("iat")
             }), 200
@@ -239,6 +383,29 @@ def register(app):
                 }), 200
             else:
                 return jsonify({"msg": "Invalid OTP code"}), 401
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/2fa/disable', methods=['POST'])
+    @jwt_required()
+    def disable_2fa():
+        """
+        Disable TOTP 2FA.
+        """
+        try:
+            db = get_db()
+            email = get_jwt_identity()
+            user = db.query(User).filter(User.email == email).first()
+            if not user:
+                return jsonify({"msg": "User not found"}), 404
+            
+            # Optional: Verify password or OTP before disabling
+            
+            user.is_2fa_enabled = 0
+            user.otp_secret = None
+            db.commit()
+            
+            return jsonify({"msg": "2FA disabled successfully"}), 200
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 

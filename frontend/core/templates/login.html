@@ -52,14 +52,27 @@
                         <button type="submit" class="btn-signup">Login</button>
                     </div>
 
-                    <div id="otp-section" class="otp-section">
-                        <p class="subtitle" style="margin-bottom: 20px;">Please enter the 6-digit code from your
-                            authenticator app.</p>
+                    <div id="email-otp-section" class="otp-section" style="display: none;">
+                        <h2 class="subtitle">Email Verification</h2>
+                        <p class="subtitle" style="margin-bottom: 20px;">
+                            We've sent a code to <span id="email-display" style="font-weight: bold;"></span>
+                        </p>
                         <div class="field">
-                            <label for="otp_code">OTP Code</label>
-                            <input type="text" id="otp_code" name="otp_code" placeholder="123456" maxlength="6" />
+                            <label for="email_otp">Email Code</label>
+                            <input type="text" id="email_otp" name="email_otp" placeholder="123456" maxlength="6" />
                         </div>
-                        <button type="button" id="verify-otp-btn" class="btn-signup">Verify Code</button>
+                        <button type="button" id="verify-email-otp-btn" class="btn-signup">Verify Email Code</button>
+                    </div>
+
+                    <div id="totp-section" class="otp-section" style="display: none;">
+                        <h2 class="subtitle">Authenticator App</h2>
+                        <p class="subtitle" style="margin-bottom: 20px;">Please enter the code from your authenticator
+                            app.</p>
+                        <div class="field">
+                            <label for="totp_code">Authenticator Code</label>
+                            <input type="text" id="totp_code" name="totp_code" placeholder="123456" maxlength="6" />
+                        </div>
+                        <button type="button" id="verify-totp-btn" class="btn-signup">Verify App Code</button>
                     </div>
 
                     <div class="login-link">
@@ -91,53 +104,139 @@
     </div>
 
     <script>
-        const loginForm = document.getElementById('login-form');
-        const credentialsSection = document.getElementById('credentials-section');
-        const otpSection = document.getElementById('otp-section');
-        const verifyOtpBtn = document.getElementById('verify-otp-btn');
-        const googleLoginBtn = document.getElementById('google-login-btn');
-        const formTitle = document.getElementById('form-title');
+        document.addEventListener('DOMContentLoaded', () => {
+            const loginForm = document.getElementById('login-form');
+            const credentialsSection = document.getElementById('credentials-section');
+            const emailOtpSection = document.getElementById('email-otp-section');
+            const totpSection = document.getElementById('totp-section');
+            const emailDisplay = document.getElementById('email-display');
 
-        verifyOtpBtn.addEventListener('click', async () => {
-            const otpCode = document.getElementById('otp_code').value;
-            const email = document.getElementById('email').value;
+            const verifyEmailOtpBtn = document.getElementById('verify-email-otp-btn');
+            const verifyTotpBtn = document.getElementById('verify-totp-btn');
+            const googleLoginBtn = document.getElementById('google-login-btn');
 
-            try {
-                const response = await fetch('/verify-2fa-endpoint/', { // We'll need to add this URL
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': '{{ csrf_token }}'
-                    },
-                    body: JSON.stringify({ email, otp_code: otpCode })
-                });
+            let currentEmail = "";
 
-                const result = await response.json();
-                if (result.success) {
-                    window.location.href = result.redirect_url;
-                } else {
-                    alert(result.error || 'Invalid OTP');
-                }
-            } catch (err) {
-                console.error(err);
-                alert('An error occurred.');
-            }
-        });
+            // 1. Submit Credentials
+            loginForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const emailInput = document.getElementById('email');
+                const passwordInput = document.getElementById('password');
 
-        googleLoginBtn.addEventListener('click', async () => {
-            try {
-                const response = await fetch('/google-login-endpoint/', { // We'll need to add this URL
-                    method: 'POST',
-                    headers: {
-                        'X-CSRFToken': '{{ csrf_token }}'
+                currentEmail = emailInput.value;
+
+                try {
+                    const response = await fetch('', { // Post to current URL (login view)
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': '{{ csrf_token }}'
+                        },
+                        body: JSON.stringify({
+                            email: emailInput.value,
+                            password: passwordInput.value
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        if (data.otp_required) {
+                            // Step 2: Show Email OTP
+                            credentialsSection.style.display = 'none';
+                            emailOtpSection.style.display = 'block';
+                            emailDisplay.textContent = currentEmail;
+                            document.querySelector('.google-btn').style.display = 'none';
+                            document.querySelector('.divider').style.display = 'none';
+                            document.querySelector('.login-link').style.display = 'none';
+                        } else if (data.redirect_url) {
+                            window.location.href = data.redirect_url;
+                        }
+                    } else {
+                        showError(data.error || "Login failed");
                     }
-                });
-                const result = await response.json();
-                if (result.success) {
-                    window.location.href = result.redirect_url;
+                } catch (err) {
+                    console.error(err);
+                    showError("An error occurred");
                 }
-            } catch (err) {
-                console.error(err);
+            });
+
+            // 2. Verify Email OTP
+            verifyEmailOtpBtn.addEventListener('click', async () => {
+                const otp = document.getElementById('email_otp').value;
+                if (!otp) return showError("Enter code");
+
+                try {
+                    const response = await fetch('/verify-login-otp/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': '{{ csrf_token }}'
+                        },
+                        body: JSON.stringify({ email: currentEmail, otp: otp })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        if (data.totp_required) {
+                            // Step 3: Show TOTP
+                            emailOtpSection.style.display = 'none';
+                            totpSection.style.display = 'block';
+                        } else if (data.redirect_url) {
+                            window.location.href = data.redirect_url;
+                        }
+                    } else {
+                        showError(data.msg || "Invalid code");
+                    }
+                } catch (err) {
+                    console.error(err);
+                    showError("Verification failed");
+                }
+            });
+
+            // 3. Verify TOTP (if optional 2FA enabled)
+            verifyTotpBtn.addEventListener('click', async () => {
+                const otp = document.getElementById('totp_code').value;
+                if (!otp) return showError("Enter code");
+
+                try {
+                    const response = await fetch('/verify-2fa-endpoint/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': '{{ csrf_token }}'
+                        },
+                        body: JSON.stringify({ email: currentEmail, otp_code: otp })
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        window.location.href = data.redirect_url;
+                    } else {
+                        showError(data.error || "Invalid code");
+                    }
+                } catch (err) {
+                    console.error(err);
+                    showError("Verification failed");
+                }
+            });
+
+            // Google Login
+            googleLoginBtn.addEventListener('click', async () => {
+                window.location.href = '/google-login-endpoint/';
+            });
+
+            function showError(msg) {
+                let errorDiv = document.querySelector(".error");
+                if (!errorDiv) {
+                    errorDiv = document.createElement("div");
+                    errorDiv.className = "error";
+                    const container = document.querySelector(".login-card");
+                    container.insertBefore(errorDiv, container.querySelector("h1").nextSibling);
+                }
+                errorDiv.textContent = msg;
             }
         });
     </script>

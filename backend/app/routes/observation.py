@@ -69,6 +69,9 @@ class User(Base):
     last_name = Column(String(100))
     otp_secret = Column(String(100), nullable=True)
     is_2fa_enabled = Column(Integer, default=0) # SQLite doesn't have Boolean, use Integer (0/1)
+    is_verified = Column(Integer, default=0) # Email verification status
+    otp_code = Column(String(10), nullable=True) # Current OTP
+    otp_created_at = Column(DateTime, nullable=True) # OTP timestamp
 
     def to_dict(self):
         return {
@@ -76,7 +79,8 @@ class User(Base):
             "email": self.email,
             "first_name": self.first_name,
             "last_name": self.last_name,
-            "is_2fa_enabled": bool(self.is_2fa_enabled)
+            "is_2fa_enabled": bool(self.is_2fa_enabled),
+            "is_verified": bool(self.is_verified)
         }
 
 from flask_jwt_extended import jwt_required, get_jwt_identity
