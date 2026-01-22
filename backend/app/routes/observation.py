@@ -59,6 +59,26 @@ class ObservationRecord(Base):
             "product_id": self.product_id,
         }
 
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True)
+    email = Column(String(120), unique=True, nullable=False)
+    password = Column(String(255), nullable=True)  # Nullable for OAuth users
+    first_name = Column(String(100))
+    last_name = Column(String(100))
+    otp_secret = Column(String(100), nullable=True)
+    is_2fa_enabled = Column(Integer, default=0) # SQLite doesn't have Boolean, use Integer (0/1)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "email": self.email,
+            "first_name": self.first_name,
+            "last_name": self.last_name,
+            "is_2fa_enabled": bool(self.is_2fa_enabled)
+        }
+
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 def get_db():

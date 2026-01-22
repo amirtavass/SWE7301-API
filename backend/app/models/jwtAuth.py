@@ -2,7 +2,7 @@
 US-13: Authentication and Protected Routes
 US-16: JWT Token Management via Website
 """
-from flask import request, jsonify
+from flask import request, jsonify, g
 from flask_jwt_extended import (
     create_access_token, 
     create_refresh_token,
@@ -15,42 +15,7 @@ import pyotp
 import qrcode
 import io
 import base64
-
-# In-memory user storage (replace with database in production)
-USERS = {
-    "admin": {
-        "password": "password",
-        "email": "admin@geoscope.com",
-        "first_name": "Admin",
-        "last_name": "User",
-        "otp_secret": None,
-        "is_2fa_enabled": False
-    },
-    "full_user": {
-        "password": "password",
-        "email": "full@geoscope.com",
-        "first_name": "Full",
-        "last_name": "Access",
-        "otp_secret": None,
-        "is_2fa_enabled": False
-    },
-    "none_user": {
-        "password": "password",
-        "email": "none@geoscope.com",
-        "first_name": "No",
-        "last_name": "Access",
-        "otp_secret": None,
-        "is_2fa_enabled": False
-    },
-    "partial_user": {
-        "password": "password",
-        "email": "partial@geoscope.com",
-        "first_name": "Partial",
-        "last_name": "Access",
-        "otp_secret": None,
-        "is_2fa_enabled": False
-    }
-}
+from app.routes.observation import User, get_db
 
 def register(app):
     """
@@ -62,35 +27,39 @@ def register(app):
     def signup():
         """
         US-16: User registration endpoint
-        Creates new user account and stores in memory
+        Creates new user account and stores in database
         """
         try:
+            db = get_db()
             data = request.json
-            username = data.get("username")
             password = data.get("password")
             email = data.get("email")
             first_name = data.get("first_name")
             last_name = data.get("last_name")
 
             # Validate required fields
-            if not all([username, password, email, first_name, last_name]):
+            if not all([password, email, first_name, last_name]):
                 return jsonify({"msg": "All fields are required"}), 400
 
             # Check if user already exists
-            if username in USERS:
-                return jsonify({"msg": "Username already exists"}), 409
+            existing_user = db.query(User).filter(User.email == email).first()
+            if existing_user:
+                return jsonify({"msg": "User with this email already exists"}), 409
 
             # Store new user
-            USERS[username] = {
-                "password": password,
-                "email": email,
-                "first_name": first_name,
-                "last_name": last_name
-            }
+            new_user = User(
+                email=email,
+                password=password, # In prod, hash this!
+                first_name=first_name,
+                last_name=last_name,
+                is_2fa_enabled=0
+            )
+            db.add(new_user)
+            db.commit()
 
             return jsonify({
                 "msg": "User created successfully",
-                "username": username
+                "email": email
             }), 201
 
         except Exception as e:
@@ -103,38 +72,37 @@ def register(app):
         Returns both tokens with configurable expiration times
         """
         try:
-            username = request.json.get("username")
+            db = get_db()
+            # Changed from username to email
+            email = request.json.get("email") or request.json.get("username") 
             password = request.json.get("password")
             
             # Validate credentials
-            if username not in USERS or USERS[username]["password"] != password:
-                return jsonify({"msg": "Bad username or password"}), 401
+            user = db.query(User).filter(User.email == email).first()
+            
+            if not user or user.password != password:
+                return jsonify({"msg": "Bad email or password"}), 401
 
             # Check if 2FA is required
-            if USERS[username].get("is_2fa_enabled"):
+            if user.is_2fa_enabled:
                 return jsonify({
                     "msg": "2FA required",
                     "two_step_required": True,
-                    "username": username
+                    "email": email
                 }), 200
 
             # Create tokens with custom expiration
             access_token = create_access_token(
-                identity=username,
+                identity=email,
                 expires_delta=timedelta(hours=1)  # 1 hour expiry
             )
             refresh_token = create_refresh_token(
-                identity=username,
+                identity=email,
                 expires_delta=timedelta(days=30)  # 30 day expiry
             )
 
             # Return user info along with tokens
-            user_info = {
-                "username": username,
-                "email": USERS[username]["email"],
-                "first_name": USERS[username]["first_name"],
-                "last_name": USERS[username]["last_name"]
-            }
+            user_info = user.to_dict()
 
             return jsonify({
                 "access_token": access_token,
@@ -153,9 +121,9 @@ def register(app):
         Accepts refresh token and returns new access token
         """
         try:
-            current_user = get_jwt_identity()
+            current_user_email = get_jwt_identity()
             new_access_token = create_access_token(
-                identity=current_user,
+                identity=current_user_email,
                 expires_delta=timedelta(hours=1)
             )
             return jsonify({
@@ -169,15 +137,14 @@ def register(app):
     def validate_token():
         """
         US-16: Token validation endpoint
-        Checks if current token is valid and returns expiration info
         """
         try:
-            current_user = get_jwt_identity()
+            current_user_email = get_jwt_identity()
             jwt_data = get_jwt()
             
             return jsonify({
                 "valid": True,
-                "user": current_user,
+                "user": current_user_email,
                 "exp": jwt_data.get("exp"),
                 "iat": jwt_data.get("iat")
             }), 200
@@ -194,10 +161,10 @@ def register(app):
         US-13: Protected endpoint requiring valid JWT
         """
         try:
-            current_user = get_jwt_identity()
+            current_user_email = get_jwt_identity()
             return jsonify({
                 "msg": "Given valid token, when used, then data returned.",
-                "user": current_user,
+                "user": current_user_email,
                 "data": "Top Secret Info"
             }), 200
         except Exception as e:
@@ -210,15 +177,18 @@ def register(app):
         Generate a TOTP secret and QR code for the user.
         """
         try:
-            username = get_jwt_identity()
-            if username not in USERS:
+            db = get_db()
+            email = get_jwt_identity()
+            user = db.query(User).filter(User.email == email).first()
+            if not user:
                 return jsonify({"msg": "User not found"}), 404
             
             secret = pyotp.random_base32()
-            USERS[username]["otp_secret"] = secret
+            user.otp_secret = secret
+            db.commit()
             
             totp = pyotp.TOTP(secret)
-            provisioning_uri = totp.provisioning_uri(name=USERS[username]["email"], issuer_name="GeoScope")
+            provisioning_uri = totp.provisioning_uri(name=email, issuer_name="GeoScope")
             
             img = qrcode.make(provisioning_uri)
             buffered = io.BytesIO()
@@ -238,66 +208,113 @@ def register(app):
         Verify the TOTP code and return tokens if valid.
         """
         try:
+            db = get_db()
             data = request.json
-            username = data.get("username")
+            email = data.get("email") or data.get("username")
             otp_code = data.get("otp_code")
             setup_mode = data.get("setup_mode", False)
             
-            if username not in USERS:
+            user = db.query(User).filter(User.email == email).first()
+            if not user:
                 return jsonify({"msg": "User not found"}), 404
             
-            secret = USERS[username].get("otp_secret")
+            secret = user.otp_secret
             if not secret:
                 return jsonify({"msg": "2FA not set up"}), 400
             
             totp = pyotp.TOTP(secret)
             if totp.verify(otp_code):
                 if setup_mode:
-                    USERS[username]["is_2fa_enabled"] = True
+                    user.is_2fa_enabled = 1
+                    db.commit()
                 
                 # Create tokens
-                access_token = create_access_token(identity=username, expires_delta=timedelta(hours=1))
-                refresh_token = create_refresh_token(identity=username, expires_delta=timedelta(days=30))
+                access_token = create_access_token(identity=email, expires_delta=timedelta(hours=1))
+                refresh_token = create_refresh_token(identity=email, expires_delta=timedelta(days=30))
                 
                 return jsonify({
                     "access_token": access_token,
                     "refresh_token": refresh_token,
-                    "user": {
-                        "username": username,
-                        "email": USERS[username]["email"],
-                        "first_name": USERS[username]["first_name"],
-                        "last_name": USERS[username]["last_name"]
-                    }
+                    "user": user.to_dict()
                 }), 200
             else:
                 return jsonify({"msg": "Invalid OTP code"}), 401
         except Exception as e:
             return jsonify({'error': str(e)}), 500
 
-    @app.route('/google-login', methods=['POST'])
+    # OAuth Setup
+    from authlib.integrations.flask_client import OAuth
+    import os
+
+    oauth = OAuth(app)
+    google = oauth.register(
+        name='google',
+        client_id=os.getenv("GOOGLE_CLIENT_ID", "your-google-client-id"),
+        client_secret=os.getenv("GOOGLE_CLIENT_SECRET", "your-google-client-secret"),
+        access_token_url='https://accounts.google.com/o/oauth2/token',
+        access_token_params=None,
+        authorize_url='https://accounts.google.com/o/oauth2/auth',
+        authorize_params=None,
+        api_base_url='https://www.googleapis.com/oauth2/v1/',
+        userinfo_endpoint='https://openidconnect.googleapis.com/v1/userinfo',
+        client_kwargs={'scope': 'openid email profile'},
+    )
+
+    @app.route('/google-login', methods=['GET', 'POST'])
     def google_login():
         """
-        Mock Google Login endpoint. 
-        In a real app, this would redirect to Google's OAuth consent screen.
+        Initiates Google OAuth flow.
+        """
+        client_id = os.getenv("GOOGLE_CLIENT_ID")
+        client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+        if not client_id or not client_secret:
+            return jsonify({"msg": "Google Client ID or Secret is not configured."}), 500
+            
+        redirect_uri = os.getenv("GOOGLE_REDIRECT_URI", "http://127.0.0.1:5000/google-callback")
+        return google.authorize_redirect(redirect_uri)
+
+    @app.route('/google-callback', methods=['GET'])
+    def google_callback():
+        """
+        Handles Google OAuth callback.
         """
         try:
-            # For demonstration, we'll just simulate a successful login as 'full_user'
-            # In real implementation, this would use google-auth-oauthlib
-            username = "full_user"
+            db = get_db()
+            token = google.authorize_access_token()
+            user_info = google.userinfo()
             
-            # Create tokens
-            access_token = create_access_token(identity=username, expires_delta=timedelta(hours=1))
-            refresh_token = create_refresh_token(identity=username, expires_delta=timedelta(days=30))
+            email = user_info.get('email')
+            name = user_info.get('name', 'Google User')
             
-            return jsonify({
-                "access_token": access_token,
-                "refresh_token": refresh_token,
-                "user": {
-                    "username": username,
-                    "email": USERS[username]["email"],
-                    "first_name": USERS[username]["first_name"],
-                    "last_name": USERS[username]["last_name"]
-                }
-            }), 200
+            # Find or create user
+            user = db.query(User).filter(User.email == email).first()
+            
+            if not user:
+                # Create a new user from Google info
+                parts = name.split(' ')
+                first_name = parts[0]
+                last_name = parts[-1] if len(parts) > 1 else ''
+                
+                user = User(
+                    email=email,
+                    password="", # No password for OAuth users
+                    first_name=first_name,
+                    last_name=last_name,
+                    is_2fa_enabled=0
+                )
+                db.add(user)
+                db.commit()
+                db.refresh(user)
+
+            # Generate JWTs
+            access_token = create_access_token(identity=user.email, expires_delta=timedelta(hours=1))
+            refresh_token = create_refresh_token(identity=user.email, expires_delta=timedelta(days=30))
+
+            # Redirect to Frontend
+            frontend_callback = os.getenv("FRONTEND_CALLBACK_URL", "http://127.0.0.1:8001/auth/google/callback")
+            
+            from flask import redirect
+            return redirect(f"{frontend_callback}?access_token={access_token}&refresh_token={refresh_token}&email={user.email}&is_2fa_enabled={user.is_2fa_enabled}&first_name={user.first_name}")
+            
         except Exception as e:
             return jsonify({'error': str(e)}), 500

@@ -3,7 +3,11 @@ from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from flasgger import Swagger
 from app.db import engine, SessionLocal, Base
+from dotenv import load_dotenv
 import os
+
+# Load environment variables
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
 
 def get_app():
     app = Flask(__name__)
@@ -11,6 +15,7 @@ def get_app():
 
     # JWT Config
     app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "super-secret-key-change-me")
+    app.secret_key = os.getenv("FLASK_SECRET_KEY", "super-secret-flask-key")  # Required for Authlib/Session
     JWTManager(app)
 
     # Swagger Documentation

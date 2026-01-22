@@ -40,8 +40,8 @@
 
                     <div id="credentials-section">
                         <div class="field">
-                            <label for="username">Username</label>
-                            <input type="text" id="username" name="username" required />
+                            <label for="email">Email</label>
+                            <input type="email" id="email" name="email" required />
                         </div>
 
                         <div class="field">
@@ -98,40 +98,9 @@
         const googleLoginBtn = document.getElementById('google-login-btn');
         const formTitle = document.getElementById('form-title');
 
-        loginForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const formData = new FormData(loginForm);
-            const data = Object.fromEntries(formData.entries());
-
-            try {
-                const response = await fetch('', {
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    }
-                });
-
-                const result = await response.json();
-
-                if (result.two_step_required) {
-                    credentialsSection.style.display = 'none';
-                    otpSection.style.display = 'block';
-                    formTitle.innerText = 'Two-Step Verification';
-                } else if (result.success) {
-                    window.location.href = result.redirect_url;
-                } else {
-                    alert(result.error || 'Login failed');
-                }
-            } catch (err) {
-                console.error(err);
-                alert('An error occurred. Please try again.');
-            }
-        });
-
         verifyOtpBtn.addEventListener('click', async () => {
             const otpCode = document.getElementById('otp_code').value;
-            const username = document.getElementById('username').value;
+            const email = document.getElementById('email').value;
 
             try {
                 const response = await fetch('/verify-2fa-endpoint/', { // We'll need to add this URL
@@ -140,7 +109,7 @@
                         'Content-Type': 'application/json',
                         'X-CSRFToken': '{{ csrf_token }}'
                     },
-                    body: JSON.stringify({ username, otp_code: otpCode })
+                    body: JSON.stringify({ email, otp_code: otpCode })
                 });
 
                 const result = await response.json();

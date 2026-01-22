@@ -22,12 +22,12 @@ def login_view(request):
     error = None
 
     if request.method == "POST" and form.is_valid():
-        username = form.cleaned_data["username"]
+        email = form.cleaned_data["email"]
         password = form.cleaned_data["password"]
         
         try:
             response = requests.post(f"{BACKEND_URL}/login", json={
-                "username": username,
+                "email": email,
                 "password": password
             })
             
@@ -35,7 +35,7 @@ def login_view(request):
             if response.status_code == 200:
                 if data.get("two_step_required"):
                     if request.headers.get('x-requested-with') == 'XMLHttpRequest':
-                        return JsonResponse({"two_step_required": True, "username": username})
+                        return JsonResponse({"two_step_required": True, "email": email})
                     return render(request, "login.html", {"form": form, "two_step_required": True})
                 
                 access_token = data.get("access_token")
@@ -45,14 +45,15 @@ def login_view(request):
                 # Store tokens and user info in session
                 request.session["access_token"] = access_token
                 request.session["refresh_token"] = refresh_token
-                request.session["username"] = username
+                request.session["username"] = user_info.get("email") # Using email as username in session
+                request.session["first_name"] = user_info.get("first_name", "User")
                 request.session["user_info"] = user_info
                 
                 if request.headers.get('x-requested-with') == 'XMLHttpRequest':
                     return JsonResponse({"success": True, "redirect_url": "/dashboard/"})
                 return redirect("dashboard")
             else:
-                error = data.get("msg", "Invalid username or password")
+                error = data.get("msg", "Invalid email or password")
                 if request.headers.get('x-requested-with') == 'XMLHttpRequest':
                     return JsonResponse({"success": False, "error": error})
         except requests.exceptions.RequestException as e:
@@ -68,12 +69,12 @@ def verify_2fa_view(request):
     if request.method == "POST":
         import json
         data = json.loads(request.body)
-        username = data.get("username")
+        email = data.get("email") or data.get("username")
         otp_code = data.get("otp_code")
         
         try:
             response = requests.post(f"{BACKEND_URL}/2fa/verify", json={
-                "username": username,
+                "email": email,
                 "otp_code": otp_code
             })
             
@@ -81,7 +82,7 @@ def verify_2fa_view(request):
                 res_data = response.json()
                 request.session["access_token"] = res_data.get("access_token")
                 request.session["refresh_token"] = res_data.get("refresh_token")
-                request.session["username"] = username
+                request.session["username"] = email
                 request.session["user_info"] = res_data.get("user")
                 return JsonResponse({"success": True, "redirect_url": "/dashboard/"})
             else:
@@ -92,19 +93,71 @@ def verify_2fa_view(request):
 
 
 def google_login_view(request):
-    """Simulate Google Login"""
-    try:
-        response = requests.post(f"{BACKEND_URL}/google-login")
-        if response.status_code == 200:
-            res_data = response.json()
-            request.session["access_token"] = res_data.get("access_token")
-            request.session["refresh_token"] = res_data.get("refresh_token")
-            request.session["username"] = res_data["user"]["username"]
-            request.session["user_info"] = res_data.get("user")
-            return JsonResponse({"success": True, "redirect_url": "/dashboard/"})
-    except Exception as e:
-        return JsonResponse({"success": False, "error": str(e)})
-    return JsonResponse({"success": False, "error": "Google login failed"})
+    """
+    Redirects to Backend Google Login to start OAuth flow.
+    """
+    return redirect(f"{BACKEND_URL}/google-login")
+
+
+def google_callback_view(request):
+    """
+    Handles callback from Backend after successful Google OAuth.
+    Captures tokens from URL parameters and sets session.
+    """
+    access_token = request.GET.get("access_token")
+    refresh_token = request.GET.get("refresh_token")
+    email = request.GET.get("email")
+
+    if access_token and refresh_token:
+        request.session["access_token"] = access_token
+        request.session["refresh_token"] = refresh_token
+        request.session["username"] = email 
+        request.session["first_name"] = request.GET.get("first_name", "User")
+        
+        is_2fa = request.GET.get("is_2fa_enabled")
+        if is_2fa == "0" or is_2fa == "False" or is_2fa == "false":
+             return redirect("setup_2fa")
+        
+        return redirect("dashboard")
+    else:
+        return render(request, "login.html", {"error": "Google Login Failed: Missing tokens."})
+
+def setup_2fa_view(request):
+    """Render 2FA setup page"""
+    access_token = request.session.get("access_token")
+    if not access_token:
+        return redirect("login")
+    
+    return render(request, "setup_2fa.html", {
+        "backend_url": BACKEND_URL,
+        "access_token": access_token
+    })
+
+def verify_2fa_setup_view(request):
+    """AJAX handler for creating 2FA setup"""
+    if request.method == "POST":
+        import json
+        data = json.loads(request.body)
+        otp_code = data.get("otp_code")
+        email = request.session.get("username")
+        
+        try:
+            response = requests.post(f"{BACKEND_URL}/2fa/verify", json={
+                "email": email,
+                "otp_code": otp_code,
+                "setup_mode": True
+            })
+            
+            if response.status_code == 200:
+                res_data = response.json()
+                # Update tokens if refreshed
+                request.session["access_token"] = res_data.get("access_token", request.session.get("access_token"))
+                return JsonResponse({"success": True, "redirect_url": "/dashboard/"})
+            else:
+                return JsonResponse({"success": False, "error": "Invalid OTP Code"})
+        except Exception as e:
+            return JsonResponse({"success": False, "error": str(e)})
+    return JsonResponse({"status": "error"}, 405)
 
 
 def signup_view(request):
@@ -126,7 +179,20 @@ def signup_view(request):
             })
             
             if response.status_code == 200 or response.status_code == 201:
-                # Redirect to login after successful signup
+                # Auto-login to proceed to 2FA setup
+                login_res = requests.post(f"{BACKEND_URL}/login", json={
+                    "email": email,
+                    "password": password
+                })
+                
+                if login_res.status_code == 200:
+                    data = login_res.json()
+                    request.session["access_token"] = data.get("access_token")
+                    request.session["refresh_token"] = data.get("refresh_token")
+                    request.session["username"] = email
+                    request.session["first_name"] = data.get("user", {}).get("first_name", "User")
+                    return redirect("setup_2fa")
+                
                 return redirect("login")
             else:
                 error = response.json().get("message", "Signup failed")
@@ -142,7 +208,7 @@ def dashboard(request):
     if not access_token:
         return redirect("login")
     
-    username = request.session.get("username", "User")
+    username = request.session.get("first_name") or request.session.get("username", "User")
     
     products = []
     subscriptions = []

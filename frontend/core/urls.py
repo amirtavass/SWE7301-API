@@ -13,4 +13,7 @@ urlpatterns = [
     path('subscribe/<int:product_id>/', views.subscribe, name='subscribe'),
     path('verify-2fa-endpoint/', views.verify_2fa_view, name='verify_2fa_endpoint'),
     path('google-login-endpoint/', views.google_login_view, name='google_login_endpoint'),
+    path('auth/google/callback', views.google_callback_view, name='google_callback'),
+    path('setup-2fa/', views.setup_2fa_view, name='setup_2fa'),
+    path('verify-2fa-setup/', views.verify_2fa_setup_view, name='verify_2fa_setup'),
 ]
