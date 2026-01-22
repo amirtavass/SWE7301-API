@@ -10,8 +10,11 @@ from app.routes.observation import User
 from werkzeug.security import generate_password_hash
 from datetime import datetime
 
+import os
+
 @pytest.fixture
 def client():
+    os.environ['FLASK_TESTING'] = 'True'
     app = get_app()
     app.config['TESTING'] = True
     with app.test_client() as client:

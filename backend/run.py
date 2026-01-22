@@ -31,8 +31,10 @@ def get_app():
         'font-src': ['\'self\'', 'https://fonts.gstatic.com', 'data:']
     }
     
-    # Check for debug mode or explicit env var
-    is_production = os.getenv('FLASK_ENV') == 'production' or not app.debug
+    # production: FLASK_ENV=production OR (debug=False AND testing=False AND FLASK_TESTING!=True)
+    # We want HTTPS in production, but NOT in local debug OR test runs.
+    is_testing = app.testing or os.getenv('FLASK_TESTING') == 'True'
+    is_production = os.getenv('FLASK_ENV') == 'production' or (not app.debug and not is_testing)
     
     Talisman(app, 
              content_security_policy=csp, 
