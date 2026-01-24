@@ -79,6 +79,77 @@ def signup_view(request):
 
     return render(request, "signup.html", {"error": error})
 
+<<<<<<< Updated upstream
+=======
+def verify_email_view(request):
+    """Handle email verification"""
+    if request.method == "POST":
+        try:
+            import json
+            data = json.loads(request.body)
+            
+            response = requests.post(f"{BACKEND_URL}/verify-email", json=data)
+            
+            if response.status_code == 200:
+                res_data = response.json()
+                # Set session
+                request.session["access_token"] = res_data.get("access_token")
+                request.session["refresh_token"] = res_data.get("refresh_token")
+                user = res_data.get("user", {})
+                request.session["username"] = user.get("email")
+                request.session["first_name"] = user.get("first_name", "User")
+                
+                return JsonResponse({"success": True, "redirect_url": "/dashboard/"})
+            else:
+                return JsonResponse(response.json(), status=response.status_code)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+    return JsonResponse({"error": "Method not allowed"}, status=405)
+
+def observations(request):
+    """Observations view protected by session token"""
+    access_token = request.session.get("access_token")
+    if not access_token:
+        return redirect("login")
+    
+    username = request.session.get("username", "User")
+    observations_data = []
+    headers = {"Authorization": f"Bearer {access_token}"}
+    
+    try:
+        # Fetching observations from your backend API
+        response = requests.get(f"{BACKEND_URL}/api/observations", params={"username": username}, headers=headers)
+        if response.status_code == 200:
+            observations_data = response.json()
+    except Exception as e:
+        print(f"Error fetching observations: {e}")
+
+    return render(request, "observations.html", {
+        "username": username,
+        "observations": observations_data
+    })
+
+def satellites(request):
+    """View to display satellite constellation status"""
+    access_token = request.session.get("access_token")
+    if not access_token:
+        return redirect("login")
+    
+    username = request.session.get("username", "User")
+    
+    # Example data structure - replace with API call later
+    satellite_list = [
+        {"name": "Sentinel-2A", "status": "Active", "sensor": "MSI", "orbit": "Sun-synchronous", "last_seen": "12 mins ago"},
+        {"name": "Sentinel-2B", "status": "Active", "sensor": "MSI", "orbit": "Sun-synchronous", "last_seen": "45 mins ago"},
+        {"name": "Landsat-8", "status": "Maintenance", "sensor": "OLI/TIRS", "orbit": "Near-polar", "last_seen": "2 hours ago"},
+        {"name": "GeoScope-P1", "status": "Active", "sensor": "SAR", "orbit": "Low Earth", "last_seen": "Just now"},
+    ]
+
+    return render(request, "satellites.html", {
+        "username": username,
+        "satellites": satellite_list
+    })
+>>>>>>> Stashed changes
 
 def dashboard(request):
     """Dashboard view protected by session token"""
