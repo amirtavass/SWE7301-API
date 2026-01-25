@@ -342,10 +342,21 @@ def subscribe(request, product_id):
     user_email = request.session.get("username") or request.session.get("user_email")
     headers = {"Authorization": f"Bearer {access_token}"}
     try:
-        requests.post(f"{BACKEND_URL}/api/subscriptions", json={
-            "user_id": user_email,
+        # POST to backend to get Checkout Session URL
+        response = requests.post(f"{BACKEND_URL}/api/create-checkout-session", json={
+            "user_email": user_email,
             "product_id": product_id
         }, headers=headers, timeout=REQUEST_TIMEOUT)
+        
+        if response.status_code == 200:
+             data = response.json()
+             if data.get("checkout_url"):
+                 return redirect(data.get("checkout_url"))
+             else:
+                 print("No checkout URL returned")
+        else:
+            print(f"Error creating checkout session: {response.text}")
+            
     except requests.exceptions.RequestException as e:
         print(f"Error subscribing (request error): {e}")
     except Exception as e:
@@ -449,7 +460,7 @@ def update_profile_view(request):
 
 def payment_success(request):
     """Render payment success page"""
-    return render(request, "payment_success.html")
+    return render(request, "payment_success.html", {"BACKEND_URL": BACKEND_URL})
 
 
 def payment_failed(request):

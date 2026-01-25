@@ -27,49 +27,34 @@ def seed_database():
         
         products = [
             Product(
-                name="Climate Monitor Pro",
-                description="Real-time climate change indicators including temperature anomalies, sea ice extent, and carbon emissions tracking.",
-                price="$299/mo"
+                name="Crop Health Monitoring",
+                description="High-res spectral analysis for agriculture.",
+                price="$499/mo",
+                stripe_price_id="price_1Stb2o9vslVP6XFWGC7vikxQ"
             ),
             Product(
-                name="Crop Health Analytics",
-                description="Advanced vegetation indices (NDVI, EVI, SAVI) for precision agriculture and yield forecasting.",
-                price="$199/mo"
+                name="Wildfire Risk Assessment",
+                description="Real-time thermal imaging and risk modeling.",
+                price="$399/mo",
+                stripe_price_id="price_1Stb5D9vslVP6XFW3gJG6GvE"
             ),
             Product(
-                name="Wildfire Risk Intelligence",
-                description="Fire danger assessment using thermal imaging, drought indices, and fuel moisture content analysis.",
-                price="$399/mo"
+                name="Urban Expansion Tracking",
+                description="Monthly change detection for city planning.",
+                price="$299/mo",
+                stripe_price_id="price_1Stb7W9vslVP6XFWkEEmUE4g"
             ),
             Product(
-                name="Deforestation Tracker",
-                description="Detect illegal logging and monitor forest cover changes with weekly satellite imagery updates.",
-                price="$249/mo"
-            ),
-            Product(
-                name="Urban Expansion Monitor",
-                description="Track city growth, infrastructure development, and land use changes for urban planning.",
-                price="$179/mo"
-            ),
-            Product(
-                name="Water Resource Management",
-                description="Monitor reservoir levels, irrigation patterns, and water quality indicators from space.",
-                price="$229/mo"
-            ),
-            Product(
-                name="Disaster Response Suite",
-                description="Rapid damage assessment for floods, earthquakes, and hurricanes using SAR and optical imagery.",
-                price="$499/mo"
-            ),
-            Product(
-                name="Ocean Monitoring",
-                description="Sea surface temperature, algal blooms, oil spills, and marine pollution detection.",
-                price="$279/mo"
+                name="Deforestation Alert System",
+                description="Instant notification of illegal logging activities.",
+                price="$199/mo",
+                stripe_price_id="price_1StbA09vslVP6XFWwcltwqQL"
             ),
             Product(
                 name="Pro Plan (All Access)",
                 description="Complete access to all GeoScope intelligence products, unlimited data downloads, and priority API access.",
-                price="$999/mo"
+                price="$999/mo",
+                stripe_price_id="price_1Stai89vslVP6XFWjMs1acaA"
             )
         ]
         
@@ -164,21 +149,27 @@ def seed_database():
 
         observations = []
         now = datetime.now(timezone.utc)
-        for i in range(8):
-            obs = ObservationRecord(
-                timestamp=(now - timedelta(days=random.randint(0, 90))),
-                timezone="UTC",
-                coordinates=random.choice(sample_coords),
-                satellite_id=random.choice(satellites),
-                spectral_indices=f"{{'NDVI': {round(random.uniform(0.2,0.9),2)}}}",
-                notes="Synthetic seed observation",
-                product_id=random.choice(all_products).id
-            )
-            observations.append(obs)
+        
+        # Products 1 to 4 are the individual data products
+        for product_id in [1, 2, 3, 4]:
+            print(f"- Generating 100 observations for Product ID {product_id}...")
+            for _ in range(100):
+                obs = ObservationRecord(
+                    timestamp=(now - timedelta(days=random.randint(0, 365))),
+                    timezone="UTC",
+                    coordinates=f"{round(random.uniform(-90, 90), 6)}, {round(random.uniform(-180, 180), 6)}",
+                    satellite_id=random.choice(satellites),
+                    spectral_indices=f"{{'NDVI': {round(random.uniform(0.1, 0.9), 2)}}}",
+                    notes=f"Synthetic observation for Product {product_id}",
+                    product_id=product_id
+                )
+                observations.append(obs)
+                
+            # Batch add per product to avoid huge memory spike if we were doing millions
+            db.add_all(observations[-100:])
+            db.commit()
 
-        db.add_all(observations)
-        db.commit()
-        print(f"✅ Created {len(observations)} observations")
+        print(f"✅ Created {len(observations)} observations total")
 
     except Exception as e:
         print(f"Error seeding database: {e}")
