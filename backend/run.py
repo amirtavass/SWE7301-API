@@ -64,7 +64,8 @@ def get_app():
             Product(id=1, name="Crop Health Monitoring", description="High-res spectral analysis for agriculture.", price="$499/mo"),
             Product(id=2, name="Wildfire Risk Assessment", description="Real-time thermal imaging and risk modeling.", price="$799/mo"),
             Product(id=3, name="Urban Expansion Tracking", description="Monthly change detection for city planning.", price="$299/mo"),
-            Product(id=4, name="Deforestation Alert System", description="Instant notification of illegal logging activities.", price="$599/mo")
+            Product(id=4, name="Deforestation Alert System", description="Instant notification of illegal logging activities.", price="$599/mo"),
+            Product(id=5, name="Pro Plan (All Access)", description="Complete access to all GeoScope intelligence products.", price="$999/mo")
         ]
         db.add_all(products)
         db.commit()

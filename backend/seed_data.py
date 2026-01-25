@@ -65,6 +65,11 @@ def seed_database():
                 name="Ocean Monitoring",
                 description="Sea surface temperature, algal blooms, oil spills, and marine pollution detection.",
                 price="$279/mo"
+            ),
+            Product(
+                name="Pro Plan (All Access)",
+                description="Complete access to all GeoScope intelligence products, unlimited data downloads, and priority API access.",
+                price="$999/mo"
             )
         ]
         

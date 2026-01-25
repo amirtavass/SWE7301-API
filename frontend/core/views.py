@@ -307,7 +307,12 @@ def subscriptions(request):
         # Fetch products
         prod_res = requests.get(f"{BACKEND_URL}/api/products", headers=headers, timeout=REQUEST_TIMEOUT)
         if prod_res.status_code == 200:
-            products = prod_res.json()
+            all_products = prod_res.json()
+            # Separate Pro Plan (ID 9) from others
+            products = [p for p in all_products if p['id'] != 9]
+            pro_plan = next((p for p in all_products if p['id'] == 9), None)
+        else:
+             pro_plan = None
         
         # Fetch user's subscriptions (backend expects user_id)
         sub_res = requests.get(f"{BACKEND_URL}/api/subscriptions", params={"user_id": user_email}, headers=headers, timeout=REQUEST_TIMEOUT)
@@ -315,12 +320,15 @@ def subscriptions(request):
             subscriptions = sub_res.json()
     except requests.exceptions.RequestException as e:
         print(f"Error fetching subscription data (request error): {e}")
+        pro_plan = None
     except Exception as e:
         print(f"Error fetching subscription data: {e}")
+        pro_plan = None
 
     return render(request, "subscriptions.html", {
         "username": display_name,
         "products": products,
+        "pro_plan": pro_plan,
         "subscriptions": subscriptions
     })
 
