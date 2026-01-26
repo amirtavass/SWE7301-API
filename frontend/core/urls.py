@@ -8,11 +8,11 @@ urlpatterns = [
     path('login/', views.login_view, name='login'),
     path('signup/', views.signup_view, name='signup'),
     path('dashboard/', views.dashboard, name='dashboard'),
-<<<<<<< Updated upstream
-=======
+
+
     path('subscriptions/', views.subscriptions, name='subscriptions'),
     path('observations/', views.observations, name='observations'),
->>>>>>> Stashed changes
+
     path('dashboard/update-token/', views.update_token_view, name='update_token'),
     path('satellites/', views.satellites, name='satellites'),
     path('subscribe/<int:product_id>/', views.subscribe, name='subscribe'),
