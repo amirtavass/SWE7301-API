@@ -296,19 +296,19 @@
             <a href="{% url 'dashboard' %}" class="nav-item">
                 <span>Dashboard</span>
             </a>
-            <a href="{% url 'subscriptions' %}" class="nav-item active">
+            <a href="{% url 'subscriptions' %}" class="nav-item">
                 <span>Subscriptions</span>
             </a>
-            <a href="{% url 'observations' %}" class="nav-item">
+            <a href="{% url 'observations' %}" class="nav-item active">
                 <span>Observations</span>
             </a>
-            <a  href="{% url 'satellites' %}" class="nav-item ">
+            <a href="{% url 'satellites' %}" class="nav-item ">
                 <span>Satellites</span>
             </a>
             <a href="#" class="nav-item">
                 <span>Analytics</span>
             </a>
-            <a href="{% url 'settings' %}" class="nav-item">
+            <a href="#" class="nav-item">
                 <span>Settings</span>
             </a>
         </nav>
@@ -318,122 +318,53 @@
     </div>
 
     <main class="main-content">
-        <header class="header">
-            <div class="welcome">
-                <h1>My Subscriptions</h1>
-                <p>Manage your active data feeds and intelligence products.</p>
-            </div>
-            <div class="user-profile">
-                <div class="avatar">{{ username|slice:":1"|upper }}</div>
-                <div style="display: flex; flex-direction: column;">
-                    <span style="font-size: 14px; font-weight: 600; color: var(--text-main);">{{ username }}</span>
-                    <span style="font-size: 12px; color: var(--text-muted);">Standard Plan</span>
-                </div>
-            </div>
-        </header>
+    <header class="header">
+        <div class="welcome">
+            <h1>Geospatial Observations</h1>
+            <p>Real-time data insights from your active satellite feeds.</p>
+        </div>
+        <div class="user-profile">
+            <div class="avatar">{{ username|slice:":1"|upper }}</div>
+            <span style="font-size: 14px; font-weight: 600;">{{ username }}</span>
+        </div>
+    </header>
 
-        <section class="section-card">
-            <div class="section-header">
-                <h3 class="section-title">Active Subscriptions</h3>
-            </div>
-            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 24px;">
-                {% for sub in subscriptions %}
-                <div
-                    style="padding: 24px; background: #f8fafc; border-radius: 20px; border: 1px solid #dae1e7; display: flex; flex-direction: column; gap: 12px;">
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                        <div>
-                            <div
-                                style="color: var(--primary); font-size: 12px; font-weight: 700; text-transform: uppercase;">
-                                Active Feed</div>
-                            <div style="font-weight: 700; font-size: 20px; margin-top: 4px;">Product #{{ sub.product_id
-                                }}</div>
-                        </div>
-                        <span class="status-badge" style="background: #dcfce7; color: #166534;">
-                            <span style="width: 6px; height: 6px; background: #22c55e; border-radius: 50%;"></span>
-                            Active
+    <section class="section-card">
+        <div class="section-header">
+            <h3 class="section-title">Latest Data Points</h3>
+        </div>
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="text-align: left; color: var(--text-muted); font-size: 13px; border-bottom: 1px solid #e2e8f0;">
+                    <th style="padding: 12px;">Timestamp</th>
+                    <th style="padding: 12px;">Product</th>
+                    <th style="padding: 12px;">Observation</th>
+                    <th style="padding: 12px;">Confidence</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for obs in observations %}
+                <tr style="border-bottom: 1px solid #f1f5f9;">
+                    <td style="padding: 16px 12px;">{{ obs.timestamp }}</td>
+                    <td style="padding: 16px 12px; font-weight: 600;">{{ obs.product_name }}</td>
+                    <td style="padding: 16px 12px;">
+                        <span style="background: var(--primary-light); color: var(--primary); padding: 4px 12px; border-radius: 6px; font-weight: 700;">
+                            {{ obs.value }} {{ obs.unit }}
                         </span>
-                    </div>
-                    <div style="font-size: 14px; color: var(--text-muted);">
-                        Subscribed on: {{ sub.created_at|slice:":10" }}
-                    </div>
-                    <div style="margin-top: 12px; display: flex; gap: 12px;">
-                        <button
-                            style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0; background: white; font-weight: 600; cursor: pointer;">Details</button>
-                        <button
-                            style="padding: 10px; border-radius: 8px; border: 1px solid #fee2e2; background: #fef2f2; color: #ef4444; font-weight: 600; cursor: pointer;">Cancel</button>
-                    </div>
-                </div>
+                    </td>
+                    <td style="padding: 16px 12px;">{{ obs.confidence|floatformat:2 }}%</td>
+                </tr>
                 {% empty %}
-                <div
-                    style="grid-column: 1 / -1; text-align: center; padding: 48px; background: #f8fafc; border-radius: 20px; border: 2px dashed #e2e8f0;">
-                    <p style="color: var(--text-muted); font-size: 16px; margin: 0;">You don't have any active
-                        subscriptions yet.</p>
-                    <p style="font-size: 14px; color: var(--secondary); margin-top: 8px;">Explore our products below to
-                        get started.</p>
-                </div>
+                <tr>
+                    <td colspan="4" style="text-align: center; padding: 40px; color: var(--text-muted);">
+                        No observations available. Subscribe to a product to start receiving data.
+                    </td>
+                </tr>
                 {% endfor %}
-            </div>
-        </section>
-
-        <section>
-            <h3 class="section-title" style="margin-bottom: 24px; font-size: 24px;">Available Intelligence Products</h3>
-
-            {% if pro_plan %}
-            <!-- Featured Pro Plan -->
-            <div
-                style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border-radius: 20px; padding: 40px; color: white; display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); position: relative; overflow: hidden;">
-                <div
-                    style="position: absolute; top: 0; right: 0; background: #eab308; color: #0f172a; font-weight: 700; font-size: 12px; padding: 6px 12px; border-bottom-left-radius: 12px; text-transform: uppercase; letter-spacing: 1px;">
-                    Best Value</div>
-                <div style="flex: 1; padding-right: 40px;">
-                    <h2 style="margin: 0 0 12px 0; font-size: 32px; font-weight: 700; color: #f8fafc;">{{ pro_plan.name
-                        }}</h2>
-                    <p style="margin: 0 0 24px 0; font-size: 18px; color: #94a3b8; line-height: 1.6;">{{
-                        pro_plan.description }}</p>
-                    <ul style="list-style: none; padding: 0; margin: 0; display: flex; gap: 24px; color: #cbd5e1;">
-                        <li style="display: flex; align-items: center; gap: 8px;"><span style="color: #22c55e;">✓</span>
-                            All 8 Intelligence Modules</li>
-                        <li style="display: flex; align-items: center; gap: 8px;"><span style="color: #22c55e;">✓</span>
-                            Priority API Support</li>
-                        <li style="display: flex; align-items: center; gap: 8px;"><span style="color: #22c55e;">✓</span>
-                            Unlimited Downloads</li>
-                    </ul>
-                </div>
-                <div style="text-align: right; min-width: 200px;">
-                    <div style="font-size: 48px; font-weight: 700; color: #f8fafc; margin-bottom: 4px;">{{
-                        pro_plan.price }}</div>
-                    <div style="color: #64748b; margin-bottom: 24px;">billed monthly</div>
-                    <a href="{% url 'subscribe' pro_plan.id %}"
-                        style="display: inline-block; background: #3b82f6; color: white; text-decoration: none; padding: 16px 32px; border-radius: 12px; font-weight: 600; font-size: 16px; transition: all 0.2s; box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.5);">Get
-                        Full Access</a>
-                </div>
-            </div>
-            {% endif %}
-
-            <div class="product-grid">
-                {% for product in products %}
-                <div class="product-card">
-                    <div style="flex: 1;">
-                        <div
-                            style="color: var(--primary); font-size: 13px; font-weight: 700; text-transform: uppercase; margin-bottom: 8px;">
-                            Premium Data</div>
-                        <h4 style="margin: 0 0 8px 0; font-size: 20px;">{{ product.name }}</h4>
-                        <p style="margin: 0; color: var(--text-muted); font-size: 15px; line-height: 1.5;">{{
-                            product.description }}</p>
-                    </div>
-                    <div style="margin-top: 16px; border-top: 1px solid #f1f5f9; padding-top: 16px;">
-                        <div
-                            style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 16px;">
-                            <span style="font-size: 13px; color: var(--text-muted);">Starting at</span>
-                            <span class="product-price">{{ product.price }}</span>
-                        </div>
-                        <a href="{% url 'subscribe' product.id %}" class="btn-subscribe">Subscribe Now</a>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-        </section>
-    </main>
+            </tbody>
+        </table>
+    </section>
+</main>
 </body>
 
 </html>
