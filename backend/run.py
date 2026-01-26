@@ -61,10 +61,11 @@ def get_app():
     db = SessionLocal()
     if db.query(Product).count() == 0:
         products = [
-            Product(id=1, name="Crop Health Monitoring", description="High-res spectral analysis for agriculture.", price="$499/mo"),
-            Product(id=2, name="Wildfire Risk Assessment", description="Real-time thermal imaging and risk modeling.", price="$799/mo"),
-            Product(id=3, name="Urban Expansion Tracking", description="Monthly change detection for city planning.", price="$299/mo"),
-            Product(id=4, name="Deforestation Alert System", description="Instant notification of illegal logging activities.", price="$599/mo")
+            Product(id=1, name="Crop Health Monitoring", description="High-res spectral analysis for agriculture.", price="$499/mo", stripe_price_id="price_1Stb2o9vslVP6XFWGC7vikxQ"),
+            Product(id=2, name="Wildfire Risk Assessment", description="Real-time thermal imaging and risk modeling.", price="$799/mo", stripe_price_id="price_1Stb5D9vslVP6XFW3gJG6GvE"),
+            Product(id=3, name="Urban Expansion Tracking", description="Monthly change detection for city planning.", price="$299/mo", stripe_price_id="price_1Stb7W9vslVP6XFWkEEmUE4g"),
+            Product(id=4, name="Deforestation Alert System", description="Instant notification of illegal logging activities.", price="$599/mo", stripe_price_id="price_1StbA09vslVP6XFWwcltwqQL"),
+            Product(id=5, name="Pro Plan (All Access)", description="Complete access to all GeoScope intelligence products.", price="$999/mo", stripe_price_id="price_1Stai89vslVP6XFWjMs1acaA")
         ]
         db.add_all(products)
         db.commit()
@@ -114,6 +115,9 @@ def get_app():
     filtering.register(app)
     healthApi.register(app)
     jwtAuth.register(app)
+    
+    from app.routes.payments import payments_bp
+    app.register_blueprint(payments_bp)
 
     return app
 

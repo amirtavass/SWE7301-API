@@ -10,13 +10,15 @@ class Product(Base):
     name = Column(String(255), nullable=False)
     description = Column(Text)
     price = Column(String(50))
+    stripe_price_id = Column(String(100), nullable=True)
     
     def to_dict(self):
         return {
             "id": self.id,
             "name": self.name,
             "description": self.description,
-            "price": self.price
+            "price": self.price,
+            "stripe_price_id": self.stripe_price_id
         }
 
 class Subscription(Base):
@@ -116,11 +118,11 @@ def register(app):
         if not obs:
             return jsonify({"error": "Not found"}), 404
         
-        # Access control: check if user has subscription for the product
+        # Access control: check if user has subscription for the product OR Pro Plan (ID 5)
         if obs.product_id:
             sub = db.query(Subscription).filter(
                 Subscription.user_id == current_user,
-                Subscription.product_id == obs.product_id
+                (Subscription.product_id == obs.product_id) | (Subscription.product_id == 5)
             ).first()
             if not sub:
                 return jsonify({"error": "Forbidden: Subscription required"}), 403

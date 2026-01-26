@@ -41,6 +41,13 @@ def seed_test_user():
              db.commit()
              print(f"Subscription for product 1 added for {email}")
         
+        # Add a subscription for product 5 (Pro Plan) for all access
+        existing_pro_sub = db.query(Subscription).filter(Subscription.user_id == email, Subscription.product_id == 5).first()
+        if not existing_pro_sub:
+             db.add(Subscription(user_id=email, product_id=5))
+             db.commit()
+             print(f"Subscription for product 5 (Pro Plan) added for {email}")
+        
     except Exception as e:
         print(f"Error seeding test user: {e}")
     finally:
