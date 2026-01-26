@@ -277,6 +277,16 @@ def dashboard(request):
             sub_res = requests.get(f"{BACKEND_URL}/api/subscriptions", params={"user_id": user_email}, headers=headers, timeout=REQUEST_TIMEOUT)
             if sub_res.status_code == 200:
                 subscriptions = sub_res.json()
+        # Determine Plan Name
+        plan_name = "Free Plan"
+        if subscriptions:
+             # Check for Pro Plan (ID 5)
+             has_pro = any(s.get('product_id') == 5 for s in subscriptions)
+             if has_pro:
+                 plan_name = "Pro Plan"
+             else:
+                 plan_name = "Standard Plan"
+
     except requests.exceptions.RequestException as e:
         print(f"Error fetching dashboard data (request error): {e}")
     except Exception as e:
@@ -284,6 +294,7 @@ def dashboard(request):
 
     return render(request, "dashboard.html", {
         "username": username,
+        "plan_name": plan_name,
         "products": products,
         "subscriptions": subscriptions,
         "backend_connected": prod_res.status_code == 200 if 'prod_res' in locals() else False
